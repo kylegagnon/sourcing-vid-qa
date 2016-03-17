@@ -2,11 +2,8 @@ require(RMySQL)
 require(dplyr)
 require(plyr)
 require(lubridate)
-<<<<<<< HEAD
 require(stringr)
 require(data.table)
-=======
->>>>>>> 977e647f0b65b3fddc2d87152069d655e31213ea
 
 # RMySQL connection to production db
 productiondb = dbConnect(MySQL(), user='root', password='root', dbname='production', host='127.0.0.1', port=3307)
@@ -21,10 +18,6 @@ Data = left_join(study_invite_data, participants, by = "participant_id")
 Data = left_join(Data, results, by = c("participant_id", "study_id"))
 colnames(studies)[1] = "study_id"
 Data = left_join(Data, studies, by = "study_id")
-<<<<<<< HEAD
-=======
-rm(results, participants, studies, study_invite_data)
->>>>>>> 977e647f0b65b3fddc2d87152069d655e31213ea
 
 # Remove key variables (overlapping) and rename Data columns.
 iColNames = colnames(study_invite_data)
@@ -36,7 +29,6 @@ sColNames = colnames(studies)[-grep("study_id", colnames(studies))]
 sColNames = paste0(sColNames, "_studies")
 newColNames = c(iColNames, pColNames, rColNames, sColNames)
 colnames(Data) = newColNames
-<<<<<<< HEAD
 rm(iColNames, pColNames, rColNames, sColNames, newColNames, results, participants, studies, study_invite_data)
 
 # Identify sample studies and create new factor column indicating client or sample study.
@@ -50,21 +42,6 @@ study_type[demo_study_id] = 'demos'
 study_type = as.factor(study_type)
 Data = cbind(Data, study_type)
 rm(sample_study_id, trash_study_id, demo_study_id, study_type)
-=======
-rm(iColNames, pColNames, rColNames, sColNames, newColNames)
-
-# Identify sample studies and create new factor column indicating client or sample study.
-sample_study_id = grep("^\\bS.(D|M).\\b", Data$title_studies)
-study_type = rep('client', nrow(Data))
-study_type[sample_study_id] = 'sample sourcing'
-trash_study_id = grep("\\btrash\\b", Data$title_studies)
-study_type[trash_study_id] = 'trashed'
-demo_study_id = grep("\\b(sample|sample study)\\b", Data$title_studies, ignore.case=TRUE)
-study_type[demo_study_id] = 'demos'
-study_type = as.factor(study_type)
-Data = cbind(Data, study_type)
-rm(sample_Study_id, study_type)
->>>>>>> 977e647f0b65b3fddc2d87152069d655e31213ea
 
 # Parse legacy demographics data -- the demographics entered when participant signs up.
 birth_dates = strptime(Data$birth_date_parts, "%Y-%m-%d %H:%M:%S")
@@ -75,7 +52,6 @@ married = data.frame("married" = tolower(str_extract(str_extract(Data$demographi
 income = data.frame("income" = as.numeric(gsub("'", "", str_extract(str_extract(Data$demographics_legacy_parts, "income: '[0-9]'"), "'[0-9]'$"))))
 comp_skill = data.frame("comp_skill" = as.numeric(gsub("'", "", str_extract(str_extract(Data$demographics_legacy_parts, "computer_skill: '[0-9]'"), "'[0-9]'$"))))
 education = data.frame("education" = as.numeric(gsub("'", "", str_extract(str_extract(Data$demographics_legacy_parts, "education: '[0-9]'"), "'[0-9]'$"))))
-<<<<<<< HEAD
 
 Data = cbind(Data, age, gender, parent, married, income, comp_skill, education)
 rm(birth_dates, age, gender, parent, married, income, comp_skill, education)
@@ -96,15 +72,6 @@ married = as.character(Data$married)
 married[nchar(married)==0] = NA
 married = as.factor(married)
 Data$married = married
-=======
-Data = cbind(Data, age, gender, parent, married, income, comp_skill, education)
-rm(birth_dates, age, gender, parent, married, income, comp_skill, education)
-
-### If already partially cleaned, load from binary file.
-load("~/Desktop/SourcingData.RData")
-keepCols = c(1:5, 7:9, 13:21, 25:36, 40:43, 45, 47, 49:54, 56, 60, 66, 71:72, 74:75, 78, 80:84, 86:87, 89, 98, 104, 106, 113:120)
-Data = Data[,keepCols]
->>>>>>> 977e647f0b65b3fddc2d87152069d655e31213ea
 
 ######################################################################
 # Parse email addresses to distinguish between byop tpsp and ingested.
@@ -132,21 +99,16 @@ no_pay_email = rep(0, nrow(Data))
 no_pay_email[no_pay_pp_email] = 1
 
 Data = cbind(Data[,1:3], byop_study, tpsp_study, ingest_study, internal_study, no_pay_email, Data[,4:ncol(Data)])
-<<<<<<< HEAD
 rm(byop_email, byop_study, ingest_email, ingest_study, internal_study, no_pay_email, no_pay_pp_email, tpsp_email, tpsp_study, ye_email)
 
 #################################
 ### Grab lat-long for participant
 ### and convert to timezone
 #################################
-=======
-
->>>>>>> 977e647f0b65b3fddc2d87152069d655e31213ea
 
 #########################
 ### Result / Invite Level
 #########################
-<<<<<<< HEAD
 # ! ! ! ! ! Use block of commented code only after fixing times by identifying time zone or IP address.
 # Grab IP addresses for results
 # and convert to lat-long and timezone
@@ -198,49 +160,6 @@ Data  = cbind(Data, SubmitTimes_days)
 
 # Calculate number of days since person joined the panel up to when the ith payment was made to them.
 PayTimes_days = as.numeric(difftime(Data$paid_at_results, Data$created_at_parts, units="days"))
-=======
-# Calculate time of day invite sent.
-invite_time = strptime(Data$created_at, "%Y-%m-%d %H:%M:%S")
-Invite_TOD = ((lubridate::period_to_seconds(hms(strftime(invite_time, format="%H:%M:%S"))))/60)/60
-
-# Calculate day of week invite sent.
-Invite_DOW = weekdays(strptime(Data$created_at, "%Y-%m-%d %H:%M:%OS"))
-Invite_DOW[as.character(Invite_DOW) == "Monday"] = 0
-Invite_DOW[as.character(Invite_DOW) == "Tuesday"] = 1
-Invite_DOW[as.character(Invite_DOW) == "Wednesday"] = 2
-Invite_DOW[as.character(Invite_DOW) == "Thursday"] = 3
-Invite_DOW[as.character(Invite_DOW) == "Friday"] = 4
-Invite_DOW[as.character(Invite_DOW) == "Saturday"] = 5
-Invite_DOW[as.character(Invite_DOW) == "Sunday"] = 6
-
-# Calculate time of day result submitted.
-submission_time = strptime(Data$created_at_results, "%Y-%m-%d %H:%M:%S")
-Submit_TOD = ((lubridate::period_to_seconds(hms(strftime(submission_time, format="%H:%M:%S"))))/60)/60
-
-# Calculate day of week result submitted.
-Submit_DOW = weekdays(strptime(Data$created_at_results, "%Y-%m-%d %H:%M:%OS"))
-Submit_DOW[as.character(Submit_DOW) == "Monday"] = 0
-Submit_DOW[as.character(Submit_DOW) == "Tuesday"] = 1
-Submit_DOW[as.character(Submit_DOW) == "Wednesday"] = 2
-Submit_DOW[as.character(Submit_DOW) == "Thursday"] = 3
-Submit_DOW[as.character(Submit_DOW) == "Friday"] = 4
-Submit_DOW[as.character(Submit_DOW) == "Saturday"] = 5
-Submit_DOW[as.character(Submit_DOW) == "Sunday"] = 6
-
-Data = cbind(Data, Submit_DOW, Invite_DOW, Invite_TOD)
-rm(invite_time, Invite_TOD, Invite_DOW, submission_time, Submit_TOD, Submit_DOW)
-
-# Calculate number of days since person joined the panel up to when the ith invite was sent. Initially in seconds, then convert to days.
-InvTimes_days = as.numeric(strptime(Data$created_at, "%Y-%m-%d %H:%M:%OS") - strptime(Data$created_at_parts, "%Y-%m-%d %H:%M:%OS"))/60/60/24
-Data = cbind(Data, InvTimes_days)
-
-# Calculate number of days since person joined the panel up to when the ith result was submitted.
-SubmitTimes_days = as.numeric(strptime(Data$created_at_results, "%Y-%m-%d %H:%M:%OS") - strptime(Data$created_at_parts, "%Y-%m-%d %H:%M:%OS"))/60/60/24
-Data  = cbind(Data, SubmitTimes_days)
-
-# Calculate number of days since person joined the panel up to when the ith payment was made to them.
-PayTimes_days = as.numeric(strptime(Data$paid_at_results, "%Y-%m-%d %H:%M:%OS") - strptime(Data$created_at_parts, "%Y-%m-%d %H:%M:%OS"))/60/60/24
->>>>>>> 977e647f0b65b3fddc2d87152069d655e31213ea
 Data  = cbind(Data, PayTimes_days)
 
 # Calculate number of days between ith invite and ith result submission.
@@ -251,7 +170,6 @@ SubmitToPayTimes_days = PayTimes_days - SubmitTimes_days
 Data = cbind(Data, InvToSubmitTimes_days, SubmitToPayTimes_days)
 rm(InvTimes_days, SubmitTimes_days, PayTimes_days, InvToSubmitTimes_days, SubmitToPayTimes_days)
 
-<<<<<<< HEAD
 
 ### !!! Change this so you just convert existing data frame "Data" into data.table to save memory.
 # Turn Data into data table
@@ -501,30 +419,6 @@ Data = cbind(Data, QualSubmitRate, RespInvRate)
 
 
 
-=======
-#####################
-### Participant Level
-#####################
-# Calculate Quality Submission Rate (# paid results submitted / # total results submitted)
-(PayResult_part_count = ddply(filter(Data, study_type == "client")
-	, ~ participant_id, summarize
-	, PayResult_part_count = length(which(with_pay_results == "1")) ))
-Data = left_join(Data, PayResult_part_count, by = "participant_id")
-
-(NoPayResult_part_count = ddply(filter(Data, study_type == "client")
-	, ~ participant_id, summarize
-	, NoPayResult_part_count = length(which(with_pay_results == "0")) ))
-Data = left_join(Data, NoPayResult_part_count, by = "participant_id")
-
-(NumInvite_part_count = ddply(filter(Data, study_type == "client")
-	, ~ participant_id, summarize
-	, NumInvite_part_count = length(with_pay_results) ))
-Data = left_join(Data, NumInvite_part_count, by = "participant_id")
-
-QualSubmitRate = Data$PayResult_part_count / (Data$PayResult_part_count + Data$NoPayResult_part_count)
-RespInvRate = (Data$PayResult_part_count + Data$NoPayResult_part_count) / Data$NumInvite_part_count
-Data = cbind(Data, QualSubmitRate, RespInvRate)
->>>>>>> 977e647f0b65b3fddc2d87152069d655e31213ea
 
 # Calculate Number of Sign Ins per Day.
 SignInRate_day = (Data$sign_in_count_parts / as.numeric(Sys.time() - strptime(Data$created_at_parts, "%Y-%m-%d %H:%M:%OS")))
