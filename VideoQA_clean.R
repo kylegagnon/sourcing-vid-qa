@@ -32,12 +32,12 @@ colnames(Data) = newColNames
 rm(iColNames, pColNames, rColNames, sColNames, newColNames, results, participants, studies, study_invite_data)
 
 # Identify sample studies and create new factor column indicating client or sample study.
-sample_study_id = grep("^\\bS.(D|M).\\b", Data$title_studies)
+sample_study_id = grep("^\\bS.(D|M).\\b", Data$title_studies, perl=TRUE)
 study_type = rep('client', nrow(Data))
 study_type[sample_study_id] = 'sample sourcing'
-trash_study_id = grep("\\btrash\\b", Data$title_studies)
+trash_study_id = grep("\\btrash\\b", Data$title_studies, perl=TRUE)
 study_type[trash_study_id] = 'trashed'
-demo_study_id = grep("\\b(sample|sample study)\\b", Data$title_studies, ignore.case=TRUE)
+demo_study_id = grep("\\b(sample|sample study)\\b", Data$title_studies, ignore.case=TRUE, perl=TRUE)
 study_type[demo_study_id] = 'demos'
 study_type = as.factor(study_type)
 Data = cbind(Data, study_type)
@@ -72,10 +72,6 @@ married = as.character(Data$married)
 married[nchar(married)==0] = NA
 married = as.factor(married)
 Data$married = married
-### If already partially cleaned, load from binary file.
-#load("~/Desktop/SourcingData.RData")
-#keepCols = c(1:5, 7:9, 13:21, 25:36, 40:43, 45, 47, 49:54, 56, 60, 66, 71:72, 74:75, 78, 80:84, 86:87, 89, 98, 104, 106, 113:120)
-#Data = Data[,keepCols]
 
 ######################################################################
 # Parse email addresses to distinguish between byop tpsp and ingested.
@@ -116,11 +112,12 @@ rm(byop_email, byop_study, ingest_email, ingest_study, internal_study, no_pay_em
 # ! ! ! ! ! Use block of commented code only after fixing times by identifying time zone or IP address.
 # Grab IP addresses for results
 # and convert to lat-long and timezone
-#IP address in base64 UTF8, so we decode into raw and convert to character.
-# ip_results = gsub("(\n|ip: )", "", str_extract(Data$request_results, "[:alnum:].+\n$"))
-# decode_ips = ip_results[grep("[a-z]+", ip_results, ignore.case=TRUE)]
-# decode_ips = paste0("CR", decode_ips, "CR")
-# decode_ips = unlist(strsplit(rawToChar(base64decode(decode_ips)), "\t"))
+# #IP address in base64 UTF8, so we decode into raw and convert to character
+# ip_add = paste(gsub("(\n|ip: )", "", str_extract(Data$request_results[1:115], "[:alnum:].+\n$")), "CR")
+# decode_ips = ip_add[grep("[a-z]+", ip_add, ignore.case=TRUE)]
+# require(base64enc)
+# decoded_ips = rawToChar(base64decode(decode_ips))
+# ip_add[grep("[a-z]+", ip_add, ignore.case=TRUE)] == decoded_ips
 
 # # Calculate time of day invite sent.
 # invite_time = strptime(Data$created_at, "%Y-%m-%d %H:%M:%S")
@@ -154,15 +151,15 @@ rm(byop_email, byop_study, ingest_email, ingest_study, internal_study, no_pay_em
 # rm(invite_time, Invite_TOD, Invite_DOW, submission_time, Submit_TOD, Submit_DOW)
 
 # Calculate number of days since person joined the panel up to when the ith invite was sent. Initially in seconds, then convert to days.
-InvTimes_days = as.numeric(strptime(Data$created_at, "%Y-%m-%d %H:%M:%OS") - strptime(Data$created_at_parts, "%Y-%m-%d %H:%M:%OS"))/60/60/24
+InvTimes_days = as.numeric(difftime(Data$created_at, Data$created_at_parts, units="days"))
 Data = cbind(Data, InvTimes_days)
 
 # Calculate number of days since person joined the panel up to when the ith result was submitted.
-SubmitTimes_days = as.numeric(strptime(Data$created_at_results, "%Y-%m-%d %H:%M:%OS") - strptime(Data$created_at_parts, "%Y-%m-%d %H:%M:%OS"))/60/60/24
+SubmitTimes_days = as.numeric(difftime(Data$created_at_results, Data$created_at_parts, units="days"))
 Data  = cbind(Data, SubmitTimes_days)
 
 # Calculate number of days since person joined the panel up to when the ith payment was made to them.
-PayTimes_days = as.numeric(strptime(Data$paid_at_results, "%Y-%m-%d %H:%M:%OS") - strptime(Data$created_at_parts, "%Y-%m-%d %H:%M:%OS"))/60/60/24
+PayTimes_days = as.numeric(difftime(Data$paid_at_results, Data$created_at_parts, units="days"))
 Data  = cbind(Data, PayTimes_days)
 
 # Calculate number of days between ith invite and ith result submission.
@@ -188,10 +185,14 @@ PayState_p_s =  allData[,.(PayCompNum = length(which(with_pay_results==1 & state
 	, PayTotal = length(which(with_pay_results==1))
 	, NoPayTotal = length(which(with_pay_results==0))
 	, InvRespRate = length(which(!is.na(created_at_results))) / (length(id))
-	, SubmitTime = mean(InvToSubmitTimes_days, na.rm=TRUE)
-	, PayTime= mean(SubmitToPayTimes_days, na.rm=TRUE)), by=.(participant_id,study_id)]
+	, SubmitTime_avg = mean(InvToSubmitTimes_days, na.rm=TRUE)
+	, CompPaySubmitTime_min = min(InvToSubmitTimes_days[which(with_pay_results==1 & state_results == "complete")], na.rm=TRUE)
+	, RejPaySubmitTime_min = min(InvToSubmitTimes_days[which(with_pay_results==1 & state_results == "rejected")], na.rm=TRUE)
+	, PayTime_avg = mean(SubmitToPayTimes_days, na.rm=TRUE)), by=.(participant_id,study_id)]
 rm(allData)
 
+PayState_p_s$CompPaySubmitTime_min[which(is.infinite(PayState_p_s$CompPaySubmitTime_min))] = NA
+PayState_p_s$RejPaySubmitTime_min[which(is.infinite(PayState_p_s$RejPaySubmitTime_min))] = NA
 # Remove all duplicate submissions for each person for a given study.
 rData = Data[!duplicated(Data[c("study_id", "participant_id")]),]
 rData = data.table(rData)
@@ -204,13 +205,76 @@ rm(rData)
 Data_p_s = left_join(Demogs_p_s, PayState_p_s, by=c("participant_id", "study_id"))
 rm(Demogs_p_s, PayState_p_s)
 
-Data_p_s$byop_study = as.integer(Data_p_s$byop_study)
-Data_p_s$tpsp_study = as.integer(Data_p_s$tpsp_study)
-Data_p_s$ingest_study = as.integer(Data_p_s$ingest_study)
-Data_p_s$internal_study = as.integer(Data_p_s$internal_study)
-Data_p_s$no_pay_email_study = as.integer(Data_p_s$no_pay_email_study)
+Study_data =  Data_p_s[,.(study_create_date = created_at_studies[1]
+	, type_studies = type_studies[1]
+	, study_type = study_type[1]
+	, SampleReq = participants_needed_studies[1]
+	, PayCompNum = sum(PayCompNum)
+	, NoPayCompNum = sum(NoPayCompNum)
+	, PayRejNum = sum(PayRejNum)
+	, NoPayRejNum = sum(NoPayRejNum)
+	, PayErrNum = sum(PayErrNum)
+	, NoPayErrNum = sum(NoPayErrNum)
+	, PayTotal = sum(PayTotal)
+	, NoPayTotal = sum(NoPayTotal)
+	, InvRespRate = mean(InvRespRate, na.rm=TRUE)
+	, SubmitTime_avg = mean(SubmitTime_avg, na.rm=TRUE)
+	, CompPaySubmitTime_avg = mean(CompPaySubmitTime_min, na.rm=TRUE)
+	, RejPaySubmitTime_avg = mean(RejPaySubmitTime_min, na.rm=TRUE)
+	, CompPaySubmitTime_med = median(CompPaySubmitTime_min, na.rm=TRUE)
+	, RejPaySubmitTime_med = median(RejPaySubmitTime_min, na.rm=TRUE)
+	, PayTime_avg= mean(PayTime_avg, na.rm=TRUE)
+	, InvRespRate_med = as.double(median(InvRespRate, na.rm=TRUE))
+	, SubmitTime_med = as.double(median(SubmitTime_avg, na.rm=TRUE))
+	, PayTime_med = as.double(median(PayTime_avg, na.rm=TRUE))
+	, AverageAge = mean(age, na.rm=TRUE)
+	, AverageIncome = mean(income, na.rm=TRUE)
+	, AverageEducation = mean(education, na.rm=TRUE)
+	, Parent_prop = length(which(parent=="true")) / length(parent)
+	, Married_prop = length(which(married=="true")) / length(married)
+	, ProfileIma_prop = length(which(has_profile_image_results==1)) / length(has_profile_image_results)
+	, NumFemale = length(which(gender == "female"))
+	, NumMale = length(which(gender == "male"))
+	, SignInAvg = mean(sign_in_count_parts, na.rm=TRUE)
+	, SignIn_med = as.double(median(sign_in_count_parts, na.rm=TRUE))
+	, BYOP_prop = length(which(byop_study==1)) / length(byop_study)
+	, TPS_prop = length(which(tpsp_study==1)) / length(tpsp_study)
+	, PANEL_prop = length(which(byop_study==0 & tpsp_study==0 & ingest_study==0)) / length(byop_study)
+	), by=.(study_id)]
 
-Study_data =  Data_p_s[,.(PayCompNum = sum(PayCompNum)
+Study_data = Study_data[order(Study_data$study_create_date),]
+timediff = c(0, diff.Date(as.Date(Study_data$study_create_date)))
+time_days = cumsum(timediff)
+Study_data[,timdiff:=timediff]
+Study_data[,time_days:=time_days]
+
+#clean up Study_data
+Study_data1415 = filter(Study_data, study_create_date > as.Date("2013-12-31"))
+c_sd = filter(Study_data, SampleReq<100, type_studies=="DesktopStudy"
+	, study_type=="client", SubmitTime < 30
+	, AverageAge < 85, (PayTotal+NoPayTotal)<100
+	, (PayTotal+NoPayTotal)>4)
+
+
+Part_data =  Data_p_s[,.(gender = gender[1], age=age[1], income=income[1], education=education[1], comp_skill=comp_skill[1]
+	, parent = parent[1], married=married[1], SignIns = sign_in_sount_parts[1], own_and_phone = has_android_phone_parts[1]
+	, own_and_tablet = has_android_tablet_parts[1], own_ios_phone = has_ios_phone_parts[1], own_ios_tablet = has_ios_tablet_parts[1]
+	, own_osx = has_osx_parts[1], own_windows = has_windows_parts[1], profileIma = has_profile_image_results[1], account_create = created_at_parts[1]
+	, PayCompNum = sum(PayCompNum)
+	, NoPayCompNum = sum(NoPayCompNum)
+	, PayRejNum = sum(PayRejNum)
+	, NoPayRejNum = sum(NoPayRejNum)
+	, PayErrNum = sum(PayErrNum)
+	, NoPayErrNum = sum(NoPayErrNum)
+	, PayTotal = sum(PayTotal)
+	, NoPayTotal = sum(NoPayTotal)
+	, InvRespRate = sum()
+
+	study_create_date = created_at_studies[1]
+	, type_studies = type_studies[1]
+	, study_type = study_type[1]
+	, SampleReq = participants_needed_studies[1]
+	, PayCompNum = sum(PayCompNum)
 	, NoPayCompNum = sum(NoPayCompNum)
 	, PayRejNum = sum(PayRejNum)
 	, NoPayRejNum = sum(NoPayRejNum)
@@ -237,12 +301,7 @@ Study_data =  Data_p_s[,.(PayCompNum = sum(PayCompNum)
 	, BYOP_prop = length(which(byop_study==1)) / length(byop_study)
 	, TPS_prop = length(which(tpsp_study==1)) / length(tpsp_study)
 	, PANEL_prop = length(which(byop_study==0 & tpsp_study==0 & ingest_study==0)) / length(byop_study)
-	), by=.(study_id)]
-
-
-
-
-
+	), by=.(participant_id)]
 
 
 
